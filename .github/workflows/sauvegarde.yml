@@ -1,0 +1,22 @@
+name: Sauvegarde hebdomadaire
+on:
+  schedule:
+    - cron: '0 23 * * 6'   # dimanche 00 h à Paris (heure d'hiver ; 01 h en été)
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sauvegarder:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Exporter et envoyer par e-mail
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          SAUVEGARDE_DEST: ${{ secrets.SAUVEGARDE_DEST }}
+        run: node scripts/sauvegarde.mjs

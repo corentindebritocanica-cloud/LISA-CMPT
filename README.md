@@ -1,6 +1,6 @@
 # LISA-CMPT — Pilotage personnel micro-BNC
 
-> **Statut (29/09/2026) : phase d'analyse. Aucun code applicatif n'est encore écrit.**
+> **Statut (02/11/2026) : version 1 construite et testée (calcul, règles, interface). Déploiement sur Firebase Hosting. Import des données 2026 prévu fin novembre (Excel final).**
 > Ce README est la **base d'information du projet** : il se lit AVANT toute modification et se met à jour APRÈS chaque modification (voir « Règles de travail »).
 
 ## 1. Objectif
@@ -105,22 +105,67 @@ Notation : `abs = congés + formation`, `J = jours ouvrés moyens`.
 8. **Aucun suivi du plafond micro-BNC** (CA cumulé).
 9. **Simulateur « valeur d'un jour » déconnecté** : recopie manuelle vers la ligne 35.
 
-## 5. Questions ouvertes (à trancher avant de figer les paramètres)
+## 5. Décisions (questionnaire du 14/10/2026 et échanges du 02/11/2026)
 
-- **Taux Urssaf + retraite** relevés dans le classeur : 13,4 % (janvier à mars), 23,2 % (avril), 23,4 % (mai à décembre). Hypothèses à vérifier sur sources officielles : réduction ACRE en début d'année, puis taux plein 23,2 %, puis 0,2 point de contribution à la formation professionnelle à partir de mai.
-- **Taux du versement libératoire** : 2,2 %, sauf 2,4 % en avril (écart de 0,2 point : erreur de saisie, ou contribution ajoutée à tort ?).
-- **CFE** lissée à 65 €/mois depuis janvier : la première année étant exonérée, est-elle due en 2026 ?
-- **Prélèvement à la source** sur le salaire hospitalier : taux réel à renseigner.
-- **Données de test** : le classeur fournit des valeurs de référence (janvier et août) pour les tests automatiques. Le dépôt étant public, les tests utiliseront des **valeurs fictives équivalentes**, sauf décision contraire.
-- Le questionnaire complet sera intégré ici dès réception des réponses.
+- **Taux** : Cipav micro 23,2 % + formation pro 0,2 % = **23,4 %** ; libératoire **2,2 %** (sources : bpifrance-creation.fr, centre-inffo.fr, vérifiés le 02/11/2026). Janv.-mars 13,4 % = ACRE (finie le 31/03/2026, décomposition à confirmer sur un relevé). Avril (23,2 % + 2,4 %) = même total, formation pro saisie sur la mauvaise ligne : l'app propose 23,4 % / 2,2 %. Taux saisis mois par mois, avec source et date.
+- **Plafond micro-BNC** 83 600 € (2026-2028), alerte à 85 % ; **TVA** : recettes hors soins suivies à part (franchise 37 500 € / 41 250 €).
+- **Versement libératoire** : RFR N-2 ≤ seuil par part (29 315 € en 2026 ; 29 579 € supposé pour 2027, à vérifier). **Risque : avec ~60 k€ de CA en 2026, le RFR 2026 (~40 k€) dépasse le seuil → libératoire perdu en 2028.** Garde-fou affiché dans l'app. Rappel en août pour l'option avant le 1er octobre.
+- **Jours de formation = jours de congé** (pioches identiques), demi-journées autorisées.
+- **Reste à vivre** : noms gardés. Reste à vivre total = salaire versé + autres revenus salariés ; final = total − épargne perso.
+- **Lissage** : l'app propose (net > plafond 2 500 € → excédent vers la tirelire salaire ; net < plancher 2 300 € → retrait forcé), Lisa valide.
+- **Report** des 5 enveloppes d'une année sur l'autre ; trésorerie initiale = solde réel de décembre, ajustable.
+- **Import « tel quel »** : les valeurs tapées à la main dans l'Excel (avril → décembre) sont importées comme **valeurs forcées** (orange), remises en automatique d'un clic.
+- **Connexion** : e-mail + mot de passe, session gardée jusqu'à déconnexion (pas de verrouillage d'inactivité, demandé par Corentin), mot de passe enregistré dans le navigateur / Trousseau Apple. Pas de double authentification.
+- **Pas de facturation Google Cloud** (plan Spark). Région Firestore eur3.
+- **Sauvegarde** : export/import JSON dans l'app + envoi automatique chaque dimanche vers la boîte mail de Corentin (secret SAUVEGARDE_DEST).
+- **Encaissements** : total du mois + nombre de séances (pas de détail paiement par paiement).
 
-## 6. Architecture cible (à valider)
+## 6. Architecture
 
-- Application web statique sans étape de build : `index.html` + modules JS, manifest et service worker.
-- Hébergement GitHub Pages (déploiement par GitHub Actions) ; Firebase Hosting à étudier pour les en-têtes CSP/HSTS, **sans changer sans accord**.
-- Données : Firestore sous `users/{uid}`, montants en centimes entiers, `schemaVersion` et `updatedAt`, calculs faits dans un module pur testable.
-- Connexion e-mail + mot de passe ; règles Firestore avec liste blanche d'utilisateurs, testées à l'émulateur.
-- Confidentialité : jamais de nom de patient (codes clients anonymes uniquement).
+- **Hébergement : Firebase Hosting** (`lisa-compta.web.app`) pour les en-têtes HTTP CSP, HSTS, frame-ancestors (impossibles sur GitHub Pages). Code sur GitHub, déployé par GitHub Actions.
+- **Sans étape de build** : `public/index.html` + modules ES natifs, `manifest.webmanifest`, `sw.js` (interface disponible hors ligne).
+- **SDK Firebase 13.1.0 copié en local** dans `public/vendor/firebase-13.1.0/` (identique au fichier officiel gstatic, imports réécrits en relatif) : aucun script externe.
+
+| Fichier | Rôle |
+|---|---|
+| `public/js/calc.js` | Calcul **pur** (centimes entiers), testé. Aucune dépendance. |
+| `public/js/donnees.js` | Auth + Firestore (cache local persistant, plusieurs onglets), enregistrement auto, export/import, mode démo |
+| `public/js/app.js` | Écrans : tableau de bord, saisie, vue annuelle, paramètres, simulateurs, sauvegarde |
+| `public/js/format.js` | Formats fr-FR, lecture « 1 234,56 » |
+| `public/js/defauts.js` | Valeurs d'une nouvelle année + sources des taux |
+| `public/js/config.js` | Configuration web Firebase **publique** (pas un secret) |
+| `firestore.rules` | Règles de sécurité |
+| `tests/calc.test.js` | Tests du calcul (valeurs **fictives**) |
+| `tests/rules.spec.js` | Tests des règles sur l'émulateur (19 cas) |
+| `scripts/sauvegarde.mjs` | Sauvegarde hebdomadaire par e-mail (GitHub Actions) |
+
+**Mode démo** : `http://localhost:8123/?demo` (localhost uniquement), données fictives en mémoire, sans Firebase.
+
+### 6.1 Modèle de données Firestore
+
+Montants en **centimes entiers**, taux en **centièmes de %** (23,40 % = 2340), jours en nombres (0,5 permis). Résultats jamais stockés.
+
+- `acces/{uid}` → `{ cabinet: 'lisa' }` : liste blanche, écrite **uniquement en admin**.
+- `cabinet/lisa/annees/{AAAA}` : `schemaVersion, updatedAt, verrouillee, chargesFixes[{id, libelle, montants[12]}], cibles{supervision, formation, tresorerie, tirelireSalaire, tirelireCharges}, tresorerieInitiale, soldesInitiaux{…, aReverser}, tauxUrssaf[12], tauxLiberatoire[12], tauxPas[12], tauxSources{cle:{texte, verifie}}, autresSalaires[12], valeurJour[12] (null = simulateur), joursOuvres[12], simulateurJour{salaireVise, joursTravailles, plancher, plafondVise}, fiscal{parts, rfrN2, rfrN1, reductions, abattementMicro, abattementMin, deductionSalaires, deductionMin, seuilRfrVlParPart, seuilTva, seuilTvaMajore, fraisReels, bareme[]}, plafondMicro, seuilAlertePlafond, seuilEcart, categoriesAchats[], caPrevu[12]`.
+- `cabinet/lisa/annees/{AAAA}/mois/{01..12}` : `schemaVersion, updatedAt, ca (null = non saisi), caHorsSoins, nbSeances, joursConge, joursFormation, retraitForce (null = net calculé), epargne, depSupervision, depFormation, autresAchats[{categorie, montant}], soldeReel, paiementUrssaf, paiementImpot, declareUrssaf, forces{provSupervision, provFormation, provTresorerie, cibleTirelireCharges, cibleTirelireSalaire}`.
+- `cabinet/lisa/reglages/interface` : `accueil (tableau|saisie|annuel), theme (clair|sombre|auto)`.
+
+### 6.2 Calcul (écarts volontaires avec l'Excel)
+
+- Rattrapage automatique sur **tous** les mois ; une valeur forcée par mois reste possible.
+- Arrondi au centime de chaque montant (écart max 0,005 € avec l'Excel, ex. 577,656 → 577,66).
+- Prévisionnel : mois non saisis = CA prévu, sinon moyenne des mois saisis.
+- **Urssaf + impôt à reverser** = cumul (cotisations + libératoire) − paiements réels. **Théorique sur le compte** = total des enveloppes + à reverser ; écart = solde réel − théorique (alerte au-delà de 100 €).
+- Simulateur fiscal annualisé : salaires seuls au barème ; CA micro après abattement 34 % dans le RFR.
+
+### 6.3 Sécurité
+
+- Connexion obligatoire, **e-mail vérifié**, UID présent dans `acces` avec le bon cabinet ; inscription d'un inconnu = aucun accès.
+- Règles : `hasOnly` sur chaque document, types et bornes (montants entiers ±10 M€, jours 0-31, mois 01-12, listes limitées), `updatedAt == request.time`, **aucune suppression**, année clôturée en lecture seule, CA figé quand le mois est déclaré à l'Urssaf. Tout le reste refusé.
+- En-têtes HTTP (`firebase.json`) : CSP sans script externe ni inline, HSTS, `frame-ancestors 'none'`, nosniff, no-referrer, Permissions-Policy, noindex. CSP aussi en `<meta>`.
+- Interface : jamais d'`innerHTML` avec des données (fonction `h()` + `textContent`), styles via CSSOM. Rien de financier dans la console.
+- Dépôt **public** : aucune donnée réelle (les tests réels restent en local, `tests/calc.reel.test.js` ignoré).
+- Compte de service : uniquement en secret GitHub (déploiement, sauvegarde) et pour l'administration ponctuelle ; jamais dans l'app.
 
 ## 7. Règles de travail
 
@@ -129,9 +174,11 @@ Notation : `abs = congés + formation`, `J = jours ouvrés moyens`.
 3. Ne jamais écrire dans le dépôt : secrets, tokens, clés, données personnelles ou financières réelles, le classeur source, ni le JSON de données 2026.
 4. Avant toute écriture dans Firestore de production : export de sauvegarde, essai à blanc, confirmation.
 5. Tous les taux et seuils vont dans les paramètres, avec source et date de vérification.
+6. Avant chaque push : `npm test` et `npm run test:rules` au vert, et relire le diff (aucun secret, aucune donnée réelle).
 
 ## 8. Journal
 
 | Date | Changement |
 |---|---|
 | 29/09/2026 | Analyse du classeur, état de l'infrastructure, anomalies et questions ouvertes. Aucun code. |
+| 02/11/2026 | V1 : calcul + tests, règles + tests émulateur, interface complète, Firebase Hosting, workflows Tests / Déploiement / Sauvegarde. Application web Firebase enregistrée (`1:779757383089:web:d68582fc494978c62c6190`). |

@@ -1,0 +1,18 @@
+# Dépendances et caches
+node_modules
+*.log
+.firebase/
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
+# JAMAIS dans le dépôt : secrets et données personnelles
+*.json.key
+sa*.json
+service-account*.json
+.env*
+*.xlsm
+*.xlsx
+donnees*.json
+compta-lisa-*.json
+import/
+tests/calc.reel.test.js

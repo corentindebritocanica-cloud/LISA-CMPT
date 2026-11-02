@@ -1,0 +1,131 @@
+rules_version = '2';
+// =====================================================================
+// Règles Firestore — Compta Lisa
+// Principe : tout est refusé, sauf pour un compte connecté, e-mail vérifié,
+// présent dans la liste blanche acces/{uid} (écrite uniquement en admin).
+// Montants en centimes entiers ; taux en centièmes de % ; jours en nombres.
+// =====================================================================
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Fonctions communes ----------
+    function connecte() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+    function autorise(cid) {
+      return connecte()
+        && exists(/databases/$(database)/documents/acces/$(request.auth.uid))
+        && get(/databases/$(database)/documents/acces/$(request.auth.uid)).data.cabinet == cid;
+    }
+    function montant(v) { return v is int && v >= -1000000000 && v <= 1000000000; }
+    function montantOuNul(v) { return v == null || montant(v); }
+    function positif(v) { return v is int && v >= 0 && v <= 1000000000; }
+    function jours(v) { return (v is int || v is float) && v >= 0 && v <= 31; }
+    function liste12(v) { return v is list && v.size() == 12; }
+    function horodate() { return request.resource.data.updatedAt == request.time; }
+    function versionOk() { return request.resource.data.schemaVersion is int && request.resource.data.schemaVersion >= 1 && request.resource.data.schemaVersion <= 100; }
+
+    // ---------- Liste blanche : lisible par soi seul, jamais écrite par l'app ----------
+    match /acces/{uid} {
+      allow read: if connecte() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /cabinet/{cid} {
+      allow read, write: if false;
+
+      // ---------- Réglages d'affichage ----------
+      match /reglages/{doc} {
+        allow read: if autorise(cid);
+        allow create, update: if autorise(cid) && doc == 'interface'
+          && request.resource.data.keys().hasOnly(['schemaVersion', 'updatedAt', 'accueil', 'theme'])
+          && versionOk() && horodate()
+          && request.resource.data.accueil in ['tableau', 'saisie', 'annuel']
+          && request.resource.data.get('theme', 'clair') in ['clair', 'sombre', 'auto'];
+        allow delete: if false;
+      }
+
+      // ---------- Paramètres d'une année ----------
+      match /annees/{annee} {
+        function anneeValide() { return annee.matches('^20[2-9][0-9]$'); }
+        function champsAnnee() {
+          let d = request.resource.data;
+          return d.keys().hasOnly(['schemaVersion', 'updatedAt', 'verrouillee', 'chargesFixes', 'cibles',
+              'tresorerieInitiale', 'tauxUrssaf', 'tauxLiberatoire', 'tauxPas', 'tauxSources', 'autresSalaires',
+              'valeurJour', 'joursOuvres', 'simulateurJour', 'fiscal', 'plafondMicro', 'seuilAlertePlafond',
+              'seuilEcart', 'categoriesAchats', 'caPrevu', 'soldesInitiaux'])
+            && d.keys().hasAll(['schemaVersion', 'updatedAt', 'verrouillee', 'cibles', 'tresorerieInitiale',
+              'tauxUrssaf', 'tauxLiberatoire', 'tauxPas', 'joursOuvres'])
+            && versionOk() && horodate()
+            && d.verrouillee is bool
+            && d.cibles is map && d.cibles.keys().hasOnly(['supervision', 'formation', 'tresorerie', 'tirelireSalaire', 'tirelireCharges'])
+            && montant(d.tresorerieInitiale)
+            && liste12(d.tauxUrssaf) && liste12(d.tauxLiberatoire) && liste12(d.tauxPas) && liste12(d.joursOuvres)
+            && (!('chargesFixes' in d) || (d.chargesFixes is list && d.chargesFixes.size() <= 40))
+            && (!('autresSalaires' in d) || liste12(d.autresSalaires))
+            && (!('valeurJour' in d) || liste12(d.valeurJour))
+            && (!('categoriesAchats' in d) || (d.categoriesAchats is list && d.categoriesAchats.size() <= 30))
+            && (!('tauxSources' in d) || (d.tauxSources is map && d.tauxSources.size() <= 40))
+            && (!('fiscal' in d) || (d.fiscal is map && d.fiscal.size() <= 30))
+            && (!('plafondMicro' in d) || positif(d.plafondMicro))
+            && (!('seuilEcart' in d) || positif(d.seuilEcart))
+            && (!('soldesInitiaux' in d) || (d.soldesInitiaux is map && d.soldesInitiaux.keys().hasOnly(['supervision', 'formation', 'tirelireCharges', 'tirelireSalaire', 'aReverser'])));
+        }
+        // Année clôturée : seul le déverrouillage est permis
+        function seulDeverrouillage() {
+          return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verrouillee', 'updatedAt']);
+        }
+        allow read: if autorise(cid) && anneeValide();
+        allow create: if autorise(cid) && anneeValide() && champsAnnee();
+        allow update: if autorise(cid) && anneeValide() && champsAnnee()
+          && (resource.data.verrouillee == false || seulDeverrouillage());
+        allow delete: if false;
+
+        // ---------- Saisie d'un mois ----------
+        match /mois/{mm} {
+          function moisValide() { return mm in ['01','02','03','04','05','06','07','08','09','10','11','12']; }
+          function anneeOuverte() {
+            return get(/databases/$(database)/documents/cabinet/$(cid)/annees/$(annee)).data.verrouillee == false;
+          }
+          function champsMois() {
+            let d = request.resource.data;
+            return d.keys().hasOnly(['schemaVersion', 'updatedAt', 'ca', 'caHorsSoins', 'nbSeances', 'joursConge',
+                'joursFormation', 'retraitForce', 'epargne', 'depSupervision', 'depFormation', 'autresAchats',
+                'soldeReel', 'paiementUrssaf', 'paiementImpot', 'declareUrssaf', 'forces'])
+              && versionOk() && horodate()
+              && (!('ca' in d) || montantOuNul(d.ca))
+              && (!('caHorsSoins' in d) || positif(d.caHorsSoins))
+              && (!('nbSeances' in d) || (d.nbSeances is int && d.nbSeances >= 0 && d.nbSeances <= 1000))
+              && (!('joursConge' in d) || jours(d.joursConge))
+              && (!('joursFormation' in d) || jours(d.joursFormation))
+              && (!('retraitForce' in d) || montantOuNul(d.retraitForce))
+              && (!('epargne' in d) || montant(d.epargne))
+              && (!('depSupervision' in d) || montant(d.depSupervision))
+              && (!('depFormation' in d) || montant(d.depFormation))
+              && (!('autresAchats' in d) || (d.autresAchats is list && d.autresAchats.size() <= 50))
+              && (!('soldeReel' in d) || montantOuNul(d.soldeReel))
+              && (!('paiementUrssaf' in d) || montant(d.paiementUrssaf))
+              && (!('paiementImpot' in d) || montant(d.paiementImpot))
+              && (!('declareUrssaf' in d) || d.declareUrssaf is bool)
+              && (!('forces' in d) || (d.forces is map && d.forces.keys().hasOnly(['provSupervision',
+                    'provFormation', 'provTresorerie', 'cibleTirelireCharges', 'cibleTirelireSalaire'])));
+          }
+          // Mois déclaré à l'Urssaf : le CA est figé (sauf si on retire la déclaration)
+          function caRespecteDeclaration() {
+            return resource == null || resource.data.get('declareUrssaf', false) == false
+              || request.resource.data.get('declareUrssaf', false) == false
+              || request.resource.data.get('ca', null) == resource.data.get('ca', null);
+          }
+          allow read: if autorise(cid) && moisValide();
+          allow create, update: if autorise(cid) && moisValide() && anneeOuverte() && champsMois() && caRespecteDeclaration();
+          allow delete: if false;
+        }
+      }
+    }
+
+    // Tout le reste : refusé
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
