@@ -182,3 +182,4 @@ Montants en **centimes entiers**, taux en **centièmes de %** (23,40 % = 2340), 
 |---|---|
 | 29/09/2026 | Analyse du classeur, état de l'infrastructure, anomalies et questions ouvertes. Aucun code. |
 | 02/11/2026 | V1 : calcul + tests, règles + tests émulateur, interface complète, Firebase Hosting, workflows Tests / Déploiement / Sauvegarde. Application web Firebase enregistrée (`1:779757383089:web:d68582fc494978c62c6190`). |
+| 02/11/2026 | Incident : chemin du SDK relatif à `js/` (404 en production, invisible en mode démo). Corrigé (`../vendor/…`), cache du service worker passé en v2. |

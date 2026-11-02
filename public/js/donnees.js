@@ -3,7 +3,7 @@
 import { CONFIG } from './config.js';
 import { SCHEMA, anneeVierge } from './defauts.js';
 
-const V = './vendor/firebase-13.1.0/';
+const V = '../vendor/firebase-13.1.0/'; // relatif à js/
 const statutListeners = new Set();
 let statut = 'enregistre'; // enregistre | enCours | horsLigne | erreur
 function setStatut(s) { statut = s; statutListeners.forEach((f) => f(s)); }
