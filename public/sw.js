@@ -1,6 +1,6 @@
 // sw.js — Service worker : garde l'interface disponible hors ligne.
 // Les données passent par le cache local de Firestore, jamais par ce cache.
-const VERSION = 'compta-lisa-v2';
+const VERSION = 'compta-lisa-v3';
 const COQUILLE = ['./', './index.html', './css/app.css', './js/app.js', './js/calc.js', './js/format.js', './js/donnees.js', './js/defauts.js', './js/config.js',
   './vendor/firebase-13.1.0/firebase-app.js', './vendor/firebase-13.1.0/firebase-auth.js', './vendor/firebase-13.1.0/firebase-firestore.js', './icone.svg', './manifest.webmanifest'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(VERSION).then((c) => c.addAll(COQUILLE)).then(() => self.skipWaiting())); });

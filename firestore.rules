@@ -75,7 +75,8 @@ service cloud.firestore {
         function seulDeverrouillage() {
           return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verrouillee', 'updatedAt']);
         }
-        allow read: if autorise(cid) && anneeValide();
+        allow get: if autorise(cid) && anneeValide();
+        allow list: if autorise(cid); // une requête de liste ne peut pas dépendre de l'identifiant
         allow create: if autorise(cid) && anneeValide() && champsAnnee();
         allow update: if autorise(cid) && anneeValide() && champsAnnee()
           && (resource.data.verrouillee == false || seulDeverrouillage());
@@ -116,7 +117,8 @@ service cloud.firestore {
               || request.resource.data.get('declareUrssaf', false) == false
               || request.resource.data.get('ca', null) == resource.data.get('ca', null);
           }
-          allow read: if autorise(cid) && moisValide();
+          allow get: if autorise(cid) && moisValide();
+          allow list: if autorise(cid);
           allow create, update: if autorise(cid) && moisValide() && anneeOuverte() && champsMois() && caRespecteDeclaration();
           allow delete: if false;
         }

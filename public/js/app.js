@@ -63,7 +63,10 @@ const moisReference = () => { const d = dernierMoisSaisi(); return d >= 0 ? d : 
 async function demarrer() {
   try { await D.initialiser(); } catch { return ecranErreur('Impossible de charger l\'application. Vérifie ta connexion puis recharge la page.'); }
   D.surErreurEcriture((code) => notifier(code === 'permission-denied' ? 'Enregistrement refusé (droits ou valeur hors limites).' : 'Erreur d\'enregistrement. Réessaie dans un instant.'));
-  D.surConnexion(async (u) => {
+  D.surConnexion((u) => ouvrirSession(u).catch((e) => ecranErreur(`Chargement impossible (${e?.code || 'erreur inconnue'}). Recharge la page ; si ça persiste, préviens Corentin.`, true)));
+}
+async function ouvrirSession(u) {
+  {
     if (!u) return ecranConnexion();
     if (!u.emailVerified) return ecranVerification();
     if (u.autorise === false) return ecranErreur('Ce compte n\'est pas autorisé. Demande à Corentin de l\'ajouter.', true);
@@ -74,7 +77,7 @@ async function demarrer() {
     if (!etat.annees.includes(etat.annee) && etat.annees.length) etat.annee = etat.annees.at(-1);
     construireCadre();
     ouvrirAnnee(etat.annee);
-  });
+  }
 }
 function appliquerTheme() {
   const t = etat.reglages.theme === 'auto' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'sombre' : 'clair') : etat.reglages.theme;

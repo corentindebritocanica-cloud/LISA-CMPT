@@ -3,7 +3,7 @@
 import { test, before, after, beforeEach } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 
 let env;
 const CAB = 'lisa';
@@ -54,7 +54,17 @@ test('Lecture de sa propre fiche d\'accès', async () => {
   await assertSucceeds(getDoc(doc(lisa(), 'acces/uidLisa')));
 });
 
+test('Listes des années et des mois (utilisées au démarrage de l\'app)', async () => {
+  await assertSucceeds(getDocs(collection(lisa(), 'cabinet/lisa/annees')));
+  await assertSucceeds(getDocs(collection(lisa(), 'cabinet/lisa/annees/2026/mois')));
+});
+
 // ---------- Cas REFUSÉS ----------
+test('Liste d\'un autre cabinet ou de la liste blanche : refusée', async () => {
+  const db = env.authenticatedContext('uidAutre', { email_verified: true }).firestore();
+  await assertFails(getDocs(collection(db, 'cabinet/lisa/annees')));
+  await assertFails(getDocs(collection(lisa(), 'acces')));
+});
 test('Non connecté : refusé', async () => {
   await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'cabinet/lisa/annees/2026')));
 });
