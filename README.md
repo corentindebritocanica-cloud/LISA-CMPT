@@ -202,7 +202,7 @@ Montants en **centimes entiers**, taux en **centièmes de %** (23,40 % = 2340), 
 - [x] Message de confidentialité (aucun nom de patient) dans l'app
 - [ ] Clé web restreinte par domaine (6.5-2)
 - [ ] Secrets GitHub ajoutés (6.5-1)
-- [ ] Compte de service : rôles minimaux ajoutés, puis clé régénérée si elle a circulé hors du gestionnaire de secrets
+- [ ] Compte de service : rôles de déploiement ajoutés (6.5-3)
 
 ## 7. Règles de travail
 
