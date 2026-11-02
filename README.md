@@ -14,17 +14,17 @@ Elle doit répondre à trois questions :
 
 **Hors périmètre** : facturation, facture électronique, comptabilité en partie double, assistant IA.
 
-## 2. Infrastructure constatée
+## 2. Infrastructure (état au 02/11/2026)
 
-| Élément | État constaté le 29/09/2026 |
+| Élément | État |
 |---|---|
-| Dépôt GitHub | `corentindebritocanica-cloud/LISA-CMPT` — **public**, ne contenait que ce README |
-| Projet Firebase | `lisa-compta` (dédié à cette app), actif |
-| Firestore | Créé le 29/09/2026, mode natif, région **eur3** (Europe), protection contre la suppression désactivée, récupération à un instant donné désactivée |
-| Authentication | E-mail + mot de passe activé |
-| Application web Firebase | Aucune enregistrée pour l'instant (config publique à créer) |
-| Firebase Hosting | Site `lisa-compta` existant (non utilisé pour l'instant) |
-| Règles Firestore | **Non vérifiées** à ce jour : à contrôler et déployer avant toute donnée |
+| Dépôt GitHub | `corentindebritocanica-cloud/LISA-CMPT` — **public** |
+| Application | **https://lisa-compta.web.app** (Firebase Hosting, en-têtes de sécurité actifs) |
+| Projet Firebase | `lisa-compta`, plan Spark (gratuit, sans facturation) |
+| Firestore | Mode natif, région **eur3**, règles de `firestore.rules` déployées le 02/11/2026 |
+| Authentication | E-mail + mot de passe. Comptes : Corentin et Lisa, tous deux dans `acces` (cabinet `lisa`) |
+| Application web Firebase | `1:779757383089:web:d68582fc494978c62c6190` (config dans `public/js/config.js`) |
+| Données | Aucune pour l'instant : import 2026 prévu fin novembre |
 
 Le dépôt et le site publié sont publics : **le code ne contient aucune donnée personnelle, aucun secret, aucune clé privée**. Les accès d'administration (token GitHub, compte de service Firebase) sont fournis hors dépôt, lus uniquement en variables d'environnement, et servent à l'initialisation, à l'import des données et au déploiement des règles (jamais dans l'app publiée).
 
@@ -167,6 +167,43 @@ Montants en **centimes entiers**, taux en **centièmes de %** (23,40 % = 2340), 
 - Dépôt **public** : aucune donnée réelle (les tests réels restent en local, `tests/calc.reel.test.js` ignoré).
 - Compte de service : uniquement en secret GitHub (déploiement, sauvegarde) et pour l'administration ponctuelle ; jamais dans l'app.
 
+## 6.4 Guide pas à pas
+
+**Se connecter** : ouvrir https://lisa-compta.web.app, e-mail + mot de passe ; accepter l'enregistrement du mot de passe (Edge, ou Safari/Trousseau avec Touch ID). Première fois : cliquer le lien de vérification reçu par e-mail. Sur Mac, Safari → Fichier → « Ajouter au Dock » pour l'utiliser comme une application.
+
+**Saisie mensuelle (fin de mois, 5-15 min)** : Saisie du mois → CA, séances, absences, retrait, dépenses, solde réel du compte, paiements Urssaf/impôt. Tout s'enregistre seul (pastille « Enregistré »). Cocher « Mois déclaré à l'Urssaf » après la déclaration du 1er.
+
+**Mot de passe oublié** : lien sur l'écran de connexion (ou Corentin renvoie un lien).
+
+**Ajouter un compte autorisé** (admin, Corentin) : créer le compte dans la console Firebase → Authentication, puis créer le document `acces/{uid}` avec `cabinet: "lisa"` (Firestore → Données). L'app ne peut jamais écrire dans `acces`.
+
+**Sauvegarder / restaurer** : écran Sauvegarde → Télécharger ; Importer affiche un aperçu et télécharge l'état actuel avant d'écraser. La sauvegarde du dimanche (e-mail) contient `cabinets.lisa` : pour la restaurer, garder ce bloc sous la forme `{ "application": "compta-lisa", "schemaVersion": 1, "annees": { … } }`.
+
+**Nouvelle année** : choisir l'année dans le sélecteur ou Sauvegarde → « Créer AAAA+1 » : paramètres copiés, enveloppes reportées, trésorerie initiale = solde réel de décembre (à ajuster dans Paramètres). Clôturer l'année écoulée dans Paramètres (lecture seule, réversible).
+
+**Mettre à jour l'application** : lire ce README → modifier → `npm test` et `npm run test:rules` → relire le diff → push sur `main`. GitHub Actions lance « Tests » puis « Déploiement » (si le secret `FIREBASE_SERVICE_ACCOUNT` existe). Changer la version du cache dans `public/sw.js` à chaque mise à jour de l'interface. Mettre ce README à jour.
+
+**Essai local** : `npx http-server public -p 8123` puis http://localhost:8123/?demo (données fictives).
+
+## 6.5 À faire par Corentin (hors de portée de l'assistant)
+
+1. **Secrets GitHub** (dépôt → Settings → Secrets and variables → Actions → New repository secret) : `FIREBASE_SERVICE_ACCOUNT` (contenu du JSON du compte de service), `GMAIL_USER` et `SAUVEGARDE_DEST` (adresse de Corentin), `GMAIL_APP_PASSWORD` (mot de passe d'application Gmail). Sans eux, le déploiement automatique et la sauvegarde du dimanche ne tournent pas.
+2. **Restreindre la clé web** : console Google Cloud du projet lisa-compta → API et services → Identifiants → clé « Browser key (auto created by Firebase) » → Restrictions d'application : *Sites web* → `https://lisa-compta.web.app/*`, `https://lisa-compta.firebaseapp.com/*`, `http://localhost:8123/*` ; Restrictions d'API : Identity Toolkit API, Token Service API, Cloud Firestore API.
+3. **Droits du compte de service** pour le déploiement par GitHub Actions : rôles *Administrateur Firebase Hosting*, *Administrateur des règles Firebase* et *Consommateur Service Usage* (IAM → compte `firebase-adminsdk-fbsvc@…`). Sans eux, l'outil `firebase deploy` est refusé (constaté le 02/11/2026 ; le déploiement a été fait par les API REST).
+4. **App Check** (facultatif) : à activer plus tard avec reCAPTCHA v3 si des abus apparaissent ; non activé pour rester simple.
+
+## 6.6 Checklist de sécurité
+
+- [x] Aucun secret ni donnée réelle dans le dépôt (vérifié à chaque commit)
+- [x] Règles Firestore strictes, testées (19 cas), déployées ; aucune suppression possible
+- [x] Liste blanche `acces` écrite seulement en admin ; e-mail vérifié obligatoire
+- [x] CSP + HSTS + frame-ancestors en en-têtes HTTP ; aucun script externe ; pas d'innerHTML de données
+- [x] Données en centimes, validées côté client et côté règles
+- [x] Message de confidentialité (aucun nom de patient) dans l'app
+- [ ] Clé web restreinte par domaine (6.5-2)
+- [ ] Secrets GitHub ajoutés (6.5-1)
+- [ ] Compte de service : rôles minimaux ajoutés, puis clé régénérée si elle a circulé hors du gestionnaire de secrets
+
 ## 7. Règles de travail
 
 1. Lire ce README **avant** toute modification.
@@ -182,4 +219,5 @@ Montants en **centimes entiers**, taux en **centièmes de %** (23,40 % = 2340), 
 |---|---|
 | 29/09/2026 | Analyse du classeur, état de l'infrastructure, anomalies et questions ouvertes. Aucun code. |
 | 02/11/2026 | V1 : calcul + tests, règles + tests émulateur, interface complète, Firebase Hosting, workflows Tests / Déploiement / Sauvegarde. Application web Firebase enregistrée (`1:779757383089:web:d68582fc494978c62c6190`). |
+| 02/11/2026 | Règles déployées, site publié (API REST : la CLI était refusée faute de droit Service Usage). Compte de Lisa créé, liste blanche `acces` (2 comptes). Restriction de clé impossible par le compte de service (API Keys non activée) : à faire à la main. Proxy de session : écriture des secrets GitHub interdite. |
 | 02/11/2026 | Incident : chemin du SDK relatif à `js/` (404 en production, invisible en mode démo). Corrigé (`../vendor/…`), cache du service worker passé en v2. |
