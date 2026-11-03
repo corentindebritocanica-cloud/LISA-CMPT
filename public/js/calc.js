@@ -106,7 +106,7 @@ export function calculerAnnee(p, mois) {
     soldes.total = soldes.supervision + soldes.formation + soldes.tresorerie
       + soldes.tirelireCharges + soldes.tirelireSalaire;
 
-    // Ajouts : Urssaf + impôt à reverser (payé le 1er du mois suivant)
+    // Ajouts : Urssaf + impôt à reverser (déclaré et payé au plus tard la fin du mois suivant)
     const du = cotisations + liberatoire;
     const paye = (s.paiementUrssaf ?? 0) + (s.paiementImpot ?? 0);
     const aReverser = (prec ? prec.aReverser : (si.aReverser ?? 0)) + du - paye;

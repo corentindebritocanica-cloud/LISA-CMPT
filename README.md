@@ -192,6 +192,16 @@ Montants en **centimes entiers**, taux en **centièmes de %** (23,40 % = 2340), 
 3. **Droits du compte de service** pour le déploiement par GitHub Actions : rôles *Administrateur Firebase Hosting*, *Administrateur des règles Firebase* et *Consommateur Service Usage* (IAM → compte `firebase-adminsdk-fbsvc@…`). Sans eux, l'outil `firebase deploy` est refusé (constaté le 02/11/2026 ; le déploiement a été fait par les API REST).
 4. **App Check** (facultatif) : à activer plus tard avec reCAPTCHA v3 si des abus apparaissent ; non activé pour rester simple.
 
+## 6.5 bis À vérifier avec Lisa avant le lancement officiel (audit du 03/11/2026)
+
+- Plafond micro-BNC : 83 600 € (BOFiP ACTU-2025-00127 via WebLex) ou 77 700 € (fiche impots.gouv mars 2026) ?
+- Taux Urssaf 13,4 % de janvier à mars 2026 : ne correspond pas à l'ACRE (50 % × 23,2 % + 0,2 % = 11,8 %) → vérifier sur un relevé Urssaf.
+- Exonération de TVA des actes de psychologue (art. 261-4-1° CGI) : à confirmer.
+- Déduction forfaitaire de 10 % sur salaires : minimum et maximum de l'année.
+- Option versement libératoire (avant le 1er octobre), 2042-C-PRO, livre des recettes (l'app ne garde qu'un total mensuel : elle ne le remplace pas), compte bancaire dédié, conservation 10 ans.
+- Saisir le salaire hospitalier annuel **net imposable** (bulletin de décembre) dans Simulateurs.
+- Restauration à une date (PITR) Firestore + secrets GitHub de sauvegarde ; restriction de la clé web.
+
 ## 6.6 Checklist de sécurité
 
 - [x] Aucun secret ni donnée réelle dans le dépôt (vérifié à chaque commit)
@@ -222,6 +232,7 @@ Montants en **centimes entiers**, taux en **centièmes de %** (23,40 % = 2340), 
 | 02/11/2026 | Règles déployées, site publié (API REST : la CLI était refusée faute de droit Service Usage). Compte de Lisa créé, liste blanche `acces` (2 comptes). Restriction de clé impossible par le compte de service (API Keys non activée) : à faire à la main. Proxy de session : écriture des secrets GitHub interdite. |
 | 02/11/2026 | Incident : chargement infini après connexion. Les règles refusaient les requêtes de **liste** (années, mois) car elles testaient l'identifiant du document. Corrigé (`allow get` avec contrôle d'identifiant / `allow list` sans), 2 tests ajoutés (21 au total). L'app affiche désormais une erreur au lieu de tourner. Cache service worker v3. |
 | 03/11/2026 | Données janvier→août 2026 du classeur V3.2 écrites en base (admin, base vide avant, contrôle à blanc conforme : janv. base nette 2 566,79 / reste à vivre 2 841,99 / tréso 5 477,89). Seront remplacées par l'import de l'Excel final. |
+| 03/11/2026 | Corrections après audit (3 agents) : échéance Urssaf « du 1er au dernier jour du mois suivant, même à 0 € » ; déploiement GitHub limité aux push de ce dépôt (plus jamais une PR ou une copie, la clé admin ne peut pas être détournée) ; passage à la nouvelle année par fenêtre de confirmation en 2 temps, reproposée à chaque ouverture tant que non validée, avec alerte si décembre n'est pas saisi ; import consolidé (paramètres déverrouillés, 12 mois en un lot atomique, mois absents vidés, verrou en dernier) et sauvegarde préalable lue sur le serveur (import annulé si elle échoue) ; libellés : seuil RFR 29 579 €, source plafond micro à confirmer, explication du lissage ; salaire hospitalier « net payé » + champ annuel « net imposable » pour le simulateur fiscal. Non retenus (décision) : prévision des mois passés vides (aucun mois ne sera oublié), cache local après déconnexion (ordinateurs personnels). Tests : calcul 10/10, règles 22/22. Cache service worker v6. |
 | 03/11/2026 | Icônes d'application : `apple-touch-icon.png` (180, iPhone « Sur l'écran d'accueil »), `icone-192.png` / `icone-512.png` (manifeste, dont maskable), balises `apple-mobile-web-app-*`. Cache service worker v5. |
 | 03/11/2026 | Mode **consultation sur téléphone** (≤ 760 px) : navigation réduite à Tableau de bord + Vue annuelle, aucune saisie ; tableau de bord simplifié avec choix du mois (‹ ›) ; 1re colonne figée dans la vue annuelle. Sur ordinateur et tablette : inchangé. Cache service worker v4. |
 | 02/11/2026 | Incident : chemin du SDK relatif à `js/` (404 en production, invisible en mode démo). Corrigé (`../vendor/…`), cache du service worker passé en v2. |

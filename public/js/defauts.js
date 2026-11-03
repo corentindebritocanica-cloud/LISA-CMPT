@@ -7,10 +7,10 @@ const x12 = (v) => Array(12).fill(v);
 export const SOURCES_2026 = {
   tauxUrssaf: { texte: 'Cipav micro 23,2 % + formation pro 0,2 % — bpifrance-creation.fr', verifie: '2026-11-02' },
   tauxLiberatoire: { texte: 'Versement libératoire BNC 2,2 % — bpifrance-creation.fr', verifie: '2026-11-02' },
-  plafondMicro: { texte: 'Micro-BNC 83 600 € (2026-2028) — LF 2026, lecoindesentrepreneurs.fr', verifie: '2026-11-02' },
+  plafondMicro: { texte: 'Micro-BNC 83 600 € (2026-2028) — BOFiP ACTU-2025-00127 (via WebLex) ; fiche impots.gouv mars 2026 : 77 700 € — À CONFIRMER', verifie: '2026-11-02' },
   seuilTva: { texte: 'Franchise TVA services 37 500 € / 41 250 € — art. 293 B CGI', verifie: '2026-11-02' },
-  seuilRfrVl: { texte: 'RFR N-2 ≤ limite 2e tranche du barème (29 315 €/part en 2026) — À VÉRIFIER pour 2027', verifie: '2026-11-02' },
-  bareme: { texte: 'Barème revenus 2025 repris du classeur — À VÉRIFIER sur impots.gouv.fr', verifie: '' },
+  seuilRfrVl: { texte: 'RFR N-2 ≤ limite 2e tranche du barème : 29 579 €/part pour 2027 (RFR 2025) ; 29 315 € en 2026 — impots.gouv', verifie: '2026-11-02' },
+  bareme: { texte: 'Barème revenus 2025 — dossier de presse DGFiP avril 2026', verifie: '2026-11-03' },
 };
 
 export const CHARGES_TYPES = ['Loyer', 'Assurance', 'RC Pro', 'Mutuelle', 'Prévoyance', 'Frais bancaires', 'Comptable',

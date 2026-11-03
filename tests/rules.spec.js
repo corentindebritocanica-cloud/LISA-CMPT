@@ -117,3 +117,9 @@ test('Mois déclaré à l\'Urssaf : CA figé', async () => {
 test('Chemin hors arborescence : refusé', async () => {
   await assertFails(setDoc(doc(lisa(), 'divers/x'), { a: 1 }));
 });
+test('Import : lot de 12 mois (dont mois vidés) accepté', async () => {
+  const { writeBatch } = await import('firebase/firestore');
+  const db = lisa(); const lot = writeBatch(db);
+  for (let m = 1; m <= 12; m++) lot.set(doc(db, `cabinet/lisa/annees/2026/mois/${String(m).padStart(2, '0')}`), m <= 2 ? mois() : { schemaVersion: 1, updatedAt: serverTimestamp() });
+  await assertSucceeds(lot.commit());
+});

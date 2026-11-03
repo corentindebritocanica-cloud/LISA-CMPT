@@ -139,21 +139,34 @@ export async function exporterTout() {
   }
   return out;
 }
-function lireUneFois(a) {
-  return new Promise((res) => {
-    let n = 0; let stop = () => {};
-    stop = ecouterAnnee(a, (v) => { if (++n >= (MODE_DEMO ? 1 : 2)) { setTimeout(() => stop()); res(v); } });
-  });
+/** Lit une année complète directement sur le SERVEUR (pas le cache local) ; échoue hors ligne. */
+export async function lireAnnee(a) {
+  if (MODE_DEMO) return { params: mem.annees[a] || null, mois: Array.from({ length: 12 }, (_, m) => mem.mois[a + id2(m)] || null) };
+  const [d, s] = await Promise.all([fb.getDocFromServer(fb.doc(db, ...cheminAnnee(a))), fb.getDocsFromServer(fb.collection(db, ...cheminAnnee(a), 'mois'))]);
+  const mois = Array(12).fill(null);
+  s.forEach((x) => { mois[Number(x.id) - 1] = nettoyer(x.data()); });
+  return { params: d.exists() ? nettoyer(d.data()) : null, mois };
 }
+const lireUneFois = lireAnnee;
 
 /** Import : écrit les années du fichier (après aperçu et confirmation dans l'interface). */
+/**
+ * Pour chaque année : 1) paramètres écrits DÉVERROUILLÉS, 2) les 12 mois en un seul lot
+ * atomique (un mois absent du fichier est vidé : pas de mélange ancien/nouveau),
+ * 3) verrou remis en dernier si l'année du fichier est clôturée.
+ */
 export async function importer(json) {
   for (const [a, { params, mois }] of Object.entries(json.annees)) {
-    await creerAnnee(Number(a), params);
-    for (let m = 0; m < 12; m++) if (mois[m]) {
-      if (MODE_DEMO) mem.mois[a + id2(m)] = mois[m];
-      else await ecrire([...cheminAnnee(a), 'mois', id2(m)], mois[m]);
+    await creerAnnee(Number(a), { ...params, verrouillee: false });
+    if (MODE_DEMO) { for (let m = 0; m < 12; m++) mem.mois[a + id2(m)] = mois[m] || undefined; }
+    else {
+      const lot = fb.writeBatch(db);
+      for (let m = 0; m < 12; m++) {
+        lot.set(fb.doc(db, ...cheminAnnee(a), 'mois', id2(m)), { ...(mois[m] || {}), schemaVersion: SCHEMA, updatedAt: fb.serverTimestamp() });
+      }
+      await lot.commit();
     }
+    if (params.verrouillee) await creerAnnee(Number(a), params);
   }
   mem.ecoute?.();
 }

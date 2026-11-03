@@ -10,8 +10,13 @@ permissions:
 concurrency: deploiement
 jobs:
   deployer:
-    # Seulement si les tests sont passés (ou lancement manuel)
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    # Seulement si les tests sont passés sur un PUSH de ce dépôt (jamais une PR ou une copie), ou lancement manuel
+    if: >-
+      github.event_name == 'workflow_dispatch' || (
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -77,6 +77,9 @@ async function ouvrirSession(u) {
     if (!etat.annees.includes(etat.annee) && etat.annees.length) etat.annee = etat.annees.at(-1);
     construireCadre();
     ouvrirAnnee(etat.annee);
+    // Nouvelle année civile pas encore créée : proposition à chaque ouverture (pas sur téléphone)
+    const an = aujourdHui.getFullYear();
+    if (!consultation() && !etat.annees.includes(an) && etat.annees.includes(an - 1)) dialogueNouvelleAnnee(an, an - 1);
   }
 }
 function appliquerTheme() {
@@ -213,17 +216,44 @@ function vueSansAnnee() {
   return h('section', {}, h('h1', {}, `Année ${etat.annee}`),
     h('p', {}, 'Cette année n\'existe pas encore.'),
     h('div', { class: 'actions', style: 'justify-content:flex-start' },
-      prec ? h('button', { class: 'btn btn-principal', onclick: () => creerAnneeDepuis(prec) }, `Créer ${etat.annee} à partir de ${prec}`) : null,
+      prec ? h('button', { class: 'btn btn-principal', onclick: () => dialogueNouvelleAnnee(etat.annee, prec) }, `Créer ${etat.annee} à partir de ${prec}`) : null,
       h('button', { class: 'btn', onclick: async () => { await D.creerAnnee(etat.annee, anneeVierge()); etat.annees = await D.listerAnnees(); remplirAnnees(); } }, 'Créer une année vierge')));
 }
-async function creerAnneeDepuis(prec) {
-  // Calcule décembre de l'année précédente pour reporter les soldes
-  const donnees = await new Promise((res) => { let stop = () => {}; let n = 0; stop = D.ecouterAnnee(prec, (v) => { if (v.params && ++n >= 1) { setTimeout(() => stop()); res(v); } }); });
+async function creerAnneeDepuis(cible, prec, donnees) {
+  // Calcule décembre de l'année précédente (lu sur le serveur) pour reporter les soldes
   const p = paramsCalcul(donnees.params);
   const dec = calculerAnnee(p, completerPrevision(p, donnees.mois))[11];
-  await D.creerAnnee(etat.annee, anneeSuivante(donnees.params, dec));
-  etat.annees = await D.listerAnnees(); remplirAnnees();
-  notifier(`Année ${etat.annee} créée. Vérifie la trésorerie initiale dans Paramètres.`);
+  await D.creerAnnee(cible, anneeSuivante(donnees.params, dec));
+  etat.annees = await D.listerAnnees(); ouvrirAnnee(cible);
+  notifier(`Année ${cible} créée. Vérifie la trésorerie initiale dans Paramètres.`);
+}
+
+/**
+ * Passage à une nouvelle année : fenêtre de confirmation en deux temps.
+ * Proposée à chaque ouverture du site tant que la nouvelle année n'est pas créée.
+ */
+async function dialogueNouvelleAnnee(cible, prec) {
+  let donnees;
+  try { donnees = await D.lireAnnee(prec); } catch { notifier('Lecture impossible (connexion ?). Réessaie plus tard.'); return; }
+  if (!donnees.params) return;
+  const dec = donnees.mois[11];
+  const decIncomplet = !dec || dec.ca === null || dec.ca === undefined || dec.soldeReel === null || dec.soldeReel === undefined;
+  const d = h('dialog', { 'aria-labelledby': 'titre-annee' });
+  const fermer = () => { d.close(); d.remove(); };
+  const etape1 = () => d.replaceChildren(
+    h('h2', { id: 'titre-annee' }, `Passer à ${cible} ?`),
+    h('p', {}, `L'année ${cible} sera créée à partir des paramètres de ${prec} (charges, cibles, taux). Les soldes des enveloppes de fin décembre ${prec} seront reportés.`),
+    decIncomplet ? h('p', { class: 'bandeau' }, `Attention : décembre ${prec} n'est pas complètement saisi (CA ou solde réel du compte). Les soldes reportés seraient des estimations. Saisis décembre avant de valider.`) : null,
+    h('div', { class: 'actions' },
+      h('button', { class: 'btn', onclick: fermer }, 'Plus tard'),
+      h('button', { class: 'btn btn-principal', onclick: etape2 }, `Passer à ${cible}`)));
+  const etape2 = () => d.replaceChildren(
+    h('h2', { id: 'titre-annee' }, 'Confirmation'),
+    h('p', {}, `Créer définitivement l'année ${cible} ?`),
+    h('div', { class: 'actions' },
+      h('button', { class: 'btn', onclick: fermer }, 'Annuler'),
+      h('button', { class: 'btn btn-principal', onclick: async (e) => { e.target.disabled = true; try { await creerAnneeDepuis(cible, prec, donnees); } catch { notifier('Création impossible. Réessaie.'); } fermer(); } }, `Oui, créer ${cible}`)));
+  etape1(); document.body.append(d); d.showModal();
 }
 
 // ------------------------------------------------------------------ Champs de saisie réutilisables
@@ -279,7 +309,7 @@ function vueTableau() {
       h('article', { class: 'carte' }, h('div', { class: 'question' }, 'Combien mettre de côté ?'),
         h('div', { class: 'grand' }, eur(deCote)),
         h('ul', { class: 'lignes' },
-          [['Supervision', r.provSupervision], ['Formation', r.provFormation], ['Trésorerie de précaution', r.provTresorerie], ['Tirelire charges', r.tirCharges], ['Tirelire salaire', r.tirSalaire], ['Urssaf + impôt à payer le 1er', r.du]]
+          [['Supervision', r.provSupervision], ['Formation', r.provFormation], ['Trésorerie de précaution', r.provTresorerie], ['Tirelire charges', r.tirCharges], ['Tirelire salaire', r.tirSalaire], ['Urssaf + impôt à payer le mois suivant', r.du]]
             .map(([n, v]) => h('li', {}, h('span', {}, n), h('span', { class: 'num' }, eur(v)))))),
       h('article', { class: 'carte' }, h('div', { class: 'question' }, 'Où en est le compte pro ?'),
         h('div', { class: 'grand' }, eur(r.soldeReel ?? r.theoriqueCompte)),
@@ -380,14 +410,16 @@ function repartitionCA() {
 function echeances() {
   const items = [];
   const m = moisReference(); const r = etat.res[m];
-  const suivant = m < 11 ? `1er ${MOIS[m + 1].toLowerCase()}` : `1er janvier ${etat.annee + 1}`;
-  items.push([`Déclaration et paiement Urssaf + libératoire (${MOIS[m].toLowerCase()})`, suivant, eur(r.du)]);
+  // Échéance légale : fin du mois suivant (déclaration mensuelle), même à 0 €
+  const fin = new Date(etat.annee, m + 2, 0);
+  const suivant = `du 1er au ${fin.getDate()} ${MOIS[fin.getMonth()].toLowerCase()}${m === 11 ? ' ' + fin.getFullYear() : ''}`;
+  items.push([`Déclaration Urssaf (même à 0 €) et paiement + libératoire (${MOIS[m].toLowerCase()})`, suivant, eur(r.du)]);
   if (aujourdHui.getMonth() <= 11) items.push(['CFE', `15 décembre ${etat.annee}`, '']);
   items.push([`Déclaration de revenus 2042-C-PRO (revenus ${etat.annee})`, `mai-juin ${etat.annee + 1}`, '']);
   if (aujourdHui.getMonth() >= 7 && aujourdHui.getMonth() <= 8) items.push(['Option ou renonciation au versement libératoire pour ' + (etat.annee + 1), `avant le 1er octobre ${etat.annee}`, '']);
   // Garde-fou RFR : le RFR de cette année conditionne le libératoire dans 2 ans
   const F = etat.params.fiscal;
-  const sim = simulateurFiscal({ caAnnuel: etat.res.reduce((t, x) => t + x.ca, 0), salairesAnnuels: etat.res.reduce((t, x) => t + x.autresSalaires, 0), parts: F.parts || 1, f: F });
+  const sim = simulateurFiscal({ caAnnuel: etat.res.reduce((t, x) => t + x.ca, 0), salairesAnnuels: salairesImposables(), parts: F.parts || 1, f: F });
   return h('div', {},
     h('ul', { class: 'lignes' }, items.map(([n, d, v]) => h('li', {}, h('span', {}, n), h('span', { class: 'num' }, d, v ? ` — ${v}` : '')))),
     sim.vlPossibleDansDeuxAns ? null : h('p', { class: 'bandeau', style: 'margin:12px 0 0' },
@@ -465,7 +497,7 @@ function panneauResultat(zone, m) {
   if (!r.prevision && r.retrait === null && sim.plafondVise && r.netCabinet > sim.plafondVise) {
     const exces = r.netCabinet - sim.plafondVise;
     proposition = h('div', { class: 'bandeau info', style: 'margin-top:12px' },
-      h('p', { style: 'margin:0 0 8px' }, `Le net dépasse ${eur(sim.plafondVise)} de ${eur(exces)}. Mettre cet excédent dans la tirelire salaire ?`),
+      h('p', { style: 'margin:0 0 8px' }, `Le net dépasse ${eur(sim.plafondVise)} de ${eur(exces)}. Mettre cet excédent dans la tirelire salaire ? Cela avance l'épargne de l'année : la cible annuelle ne change pas, les versements des mois suivants baisseront d'autant.`),
       h('button', { class: 'btn btn-principal', disabled: verrouillee(), onclick: () => appliquerForce(m, 'cibleTirelireSalaire', r.cibleTirelireSalaire + Math.round(exces / Math.max(0.0001, 1 - r.abs / (P.joursOuvres[m] || 20)))) }, 'Appliquer'));
   } else if (!r.prevision && r.retrait === null && sim.plancher && r.netCabinet < sim.plancher) {
     proposition = h('div', { class: 'bandeau info', style: 'margin-top:12px' },
@@ -604,7 +636,7 @@ function vueParametres() {
 
     h('fieldset', {}, h('legend', {}, 'Revenus et jours'),
       h('div', { class: 'tableau-defile grille-params' }, h('table', {}, enteteMois.cloneNode(true), h('tbody', {},
-        ligne12('Autres revenus salariés (net)', P.autresSalaires, 'eur', { min: 0 }),
+        ligne12('Salaire hospitalier (net payé)', P.autresSalaires, 'eur', { min: 0 }),
         ligne12('Valeur d\'un jour (vide = simulateur)', P.valeurJour, 'eur', { vide: true, min: 0 }),
         ligne12('Jours ouvrés moyens', P.joursOuvres, 'jours', { min: 1, max: 31 }),
         ligne12('CA prévu (vide = moyenne)', P.caPrevu || (P.caPrevu = Array(12).fill(null)), 'eur', { vide: true, min: 0 })))),
@@ -642,10 +674,15 @@ function vueParametres() {
 }
 
 // ------------------------------------------------------------------ Simulateurs
+/** Salaire annuel net IMPOSABLE (bulletin) s'il est saisi, sinon somme des nets payés (estimation basse). */
+function salairesImposables() {
+  const v = etat.params.fiscal?.salaireImposable;
+  return Number.isInteger(v) ? v : etat.res.reduce((t, x) => t + x.autresSalaires, 0);
+}
 function vueSimulateurs() {
   const P = etat.params; const F = P.fiscal;
   const ca = etat.res.reduce((t, r) => t + r.ca, 0);
-  const sal = etat.res.reduce((t, r) => t + r.autresSalaires, 0);
+  const sal = salairesImposables();
   const cot = etat.res.reduce((t, r) => t + r.cotisations, 0);
   const fisc = simulateurFiscal({ caAnnuel: ca, salairesAnnuels: sal, parts: F.parts || 1, f: F });
   const mvr = microVsReel({ caAnnuel: ca, fraisReels: F.fraisReels || 0, cotisations: cot, f: F });
@@ -658,6 +695,9 @@ function vueSimulateurs() {
           L('CA annuel projeté', ca), L('Bénéfice micro (après abattement 34 %)', fisc.beneficeMicro),
           L('Salaires imposables (après 10 %)', fisc.salairesNets), L('Impôt au barème sur les salaires', Math.max(0, fisc.impotSalaires - (F.reductions || 0)), 'total'),
           L('Revenu fiscal de référence estimé', fisc.rfr), L(`Seuil libératoire (${F.parts || 1} part)`, fisc.seuilVL)),
+        champ({ label: 'Salaire hospitalier annuel net imposable', valeur: F.salaireImposable ?? null, min: 0,
+          aide: 'Cumul « net imposable » du bulletin de décembre. Vide = somme des nets payés (impôt un peu sous-estimé).',
+          onChange: (v) => { F.salaireImposable = v; D.sauverParams(etat.annee, etat.params); recalculer(); } }),
         h('p', { class: fisc.vlPossibleDansDeuxAns ? 'pastille ok' : 'bandeau', style: 'margin-top:10px' },
           fisc.vlPossibleDansDeuxAns ? `Libératoire toujours accessible en ${etat.annee + 2}` : `Libératoire perdu en ${etat.annee + 2} : RFR au-dessus du seuil.`),
         h('p', { class: 'petit muted' }, `Pour comparer, sans libératoire (tout au barème) : ${eur(fisc.impotSansVL)} d'impôt, contre ${eur(etat.res.reduce((t, r) => t + r.liberatoire, 0))} de libératoire + ${eur(fisc.impotSalaires)} sur les salaires.`)),
@@ -698,7 +738,8 @@ function vueSauvegarde() {
         h('button', { class: 'btn btn-principal', onclick: async (ev) => {
           if (!confirm('Remplacer les années listées par le contenu du fichier ? Une sauvegarde de l\'état actuel va d\'abord être téléchargée.')) return;
           ev.target.disabled = true;
-          telecharger(await D.exporterTout(), `compta-lisa-avant-import-${horodatage()}.json`);
+          try { telecharger(await D.exporterTout(), `compta-lisa-avant-import-${horodatage()}.json`); }
+          catch { notifier('Sauvegarde préalable impossible (connexion ?) : import annulé.'); ev.target.disabled = false; return; }
           try { await D.importer(json); notifier('Import terminé.'); etat.annees = await D.listerAnnees(); remplirAnnees(); ouvrirAnnee(etat.annee); }
           catch { notifier('Import interrompu : certaines valeurs ont été refusées.'); ev.target.disabled = false; }
         } }, 'Confirmer l\'import')));
