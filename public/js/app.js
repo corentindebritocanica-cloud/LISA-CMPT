@@ -145,6 +145,11 @@ const ICONES = {
   sauvegarde: 'M5 3h11l3 3v15H5zM8 3v5h7V3M8 21v-7h8v7',
 };
 const VUES = [['tableau', 'Tableau de bord'], ['saisie', 'Saisie du mois'], ['annuel', 'Vue annuelle'], ['parametres', 'Paramètres'], ['simulateurs', 'Simulateurs'], ['sauvegarde', 'Sauvegarde']];
+// Téléphone (≤ 760 px) : mode consultation, sans saisie (tableau de bord simplifié + vue annuelle).
+const TEL = matchMedia('(max-width: 760px)');
+const consultation = () => TEL.matches;
+const vuesVisibles = () => (consultation() ? VUES.filter(([v]) => v === 'tableau' || v === 'annuel') : VUES);
+TEL.addEventListener('change', () => { if (document.getElementById('vue')) { construireCadre(); afficher(false); } });
 
 function construireCadre() {
   const statut = h('span', { class: 'statut', role: 'status', 'aria-live': 'polite' });
@@ -153,10 +158,11 @@ function construireCadre() {
     statut.textContent = { enregistre: 'Enregistré', enCours: 'Enregistrement…', horsLigne: 'Hors ligne — sera envoyé au retour du réseau', erreur: 'Erreur d\'enregistrement' }[st];
   });
   const nav = h('nav', { class: 'nav', 'aria-label': 'Navigation principale' },
-    VUES.map(([id, nom]) => h('a', { href: '#/' + id, 'data-vue': id },
+    vuesVisibles().map(([id, nom]) => h('a', { href: '#/' + id, 'data-vue': id },
       s('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.8, 'stroke-linejoin': 'round', 'aria-hidden': 'true' }, s('path', { d: ICONES[id] })),
       h('span', {}, nom))));
   const choixAnnee = h('select', { 'aria-label': 'Année', id: 'choix-annee', onchange: (e) => ouvrirAnnee(Number(e.target.value)) });
+  document.body.classList.toggle('consultation', consultation());
   racine().replaceChildren(h('div', { class: 'appli' },
     h('aside', { class: 'barre-laterale' }, marque(), nav,
       h('div', { class: 'pied-nav' }, choixAnnee, statut,
@@ -186,7 +192,8 @@ function ouvrirAnnee(a) {
 
 function vueCourante() {
   const [, vue = '', arg] = location.hash.split('/');
-  return { vue: VUES.some(([v]) => v === vue) ? vue : etat.reglages.accueil || 'tableau', arg };
+  const accueil = consultation() ? 'tableau' : etat.reglages.accueil || 'tableau';
+  return { vue: vuesVisibles().some(([v]) => v === vue) ? vue : accueil, arg };
 }
 let majPanneau = null;
 function afficher(focus) {
@@ -195,7 +202,7 @@ function afficher(focus) {
   const zone = document.getElementById('vue'); if (!zone) return;
   majPanneau = null;
   if (!etat.params && vue !== 'sauvegarde') { zone.replaceChildren(vueSansAnnee()); return; }
-  const rendus = { tableau: vueTableau, saisie: () => vueSaisie(arg), annuel: vueAnnuel, parametres: vueParametres, simulateurs: vueSimulateurs, sauvegarde: vueSauvegarde };
+  const rendus = { tableau: () => (consultation() ? vueMobile() : vueTableau()), saisie: () => vueSaisie(arg), annuel: vueAnnuel, parametres: vueParametres, simulateurs: vueSimulateurs, sauvegarde: vueSauvegarde };
   zone.replaceChildren(rendus[vue]());
   document.title = `${VUES.find(([v]) => v === vue)[1]} — Compta Lisa`;
   if (focus) zone.focus();
@@ -306,6 +313,36 @@ function vueTableau() {
         h('p', { class: 'petit muted', style: 'margin-top:10px' }, `Prévision fin d'année : CA ${eur(etat.res.reduce((t, x) => t + x.ca, 0))}, reste à vivre ${eur(etat.res.reduce((t, x) => t + x.resteAVivre, 0))}.`))),
     h('article', { class: 'carte', style: 'margin-top:16px' }, h('h2', {}, 'Échéances et rappels'), echeances()),
     h('p', { class: 'confidentialite', style: 'margin-top:16px' }, MSG_CONFIDENTIALITE));
+}
+
+// ------------------------------------------------------------------ Téléphone : consultation
+let moisVu = null; // mois affiché sur téléphone (null = dernier mois saisi)
+function vueMobile() {
+  const m = moisVu ?? moisReference(); const r = etat.res[m]; const P = etat.params;
+  const plafond = suiviPlafond(etat.res, P.plafondMicro, P.seuilAlertePlafond);
+  const deCote = r.provSupervision + r.provFormation + r.provTresorerie + r.tirCharges + r.tirSalaire;
+  const aller = (d) => { moisVu = Math.min(11, Math.max(0, m + d)); afficher(false); };
+  const ligne = (n, v, cls = '') => h('li', { class: cls }, h('span', {}, n), h('span', { class: 'num ' + signe(v) }, eur(v)));
+  return h('section', { class: 'mobile' },
+    h('div', { class: 'choix-mois' },
+      h('button', { class: 'btn', 'aria-label': 'Mois précédent', disabled: m === 0, onclick: () => aller(-1) }, '‹'),
+      h('h1', {}, `${MOIS[m]} ${etat.annee}`, r.prevision ? h('span', { class: 'pastille' }, 'Prévision') : null),
+      h('button', { class: 'btn', 'aria-label': 'Mois suivant', disabled: m === 11, onclick: () => aller(1) }, '›')),
+    h('p', { class: 'bandeau info petit' }, 'Consultation sur téléphone. La saisie se fait sur ordinateur.'),
+    h('article', { class: 'carte' }, h('div', { class: 'question' }, 'À te verser'), h('div', { class: 'grand' }, eur(r.salaireVerse)),
+      h('ul', { class: 'lignes' }, ligne('CA encaissé', r.ca), ligne('Reste à vivre total', r.resteAVivre, 'total'))),
+    h('article', { class: 'carte' }, h('div', { class: 'question' }, 'À mettre de côté'), h('div', { class: 'grand' }, eur(deCote)),
+      h('ul', { class: 'lignes' }, ligne('Urssaf + impôt à payer', r.du))),
+    h('article', { class: 'carte' }, h('div', { class: 'question' }, 'Compte pro'), h('div', { class: 'grand' }, eur(r.soldeReel ?? r.theoriqueCompte)),
+      h('div', { class: 'muted petit' }, r.soldeReel === null ? 'Théorique (solde réel non saisi)' : `Réel — écart ${eur(r.ecartReel)}`)),
+    h('article', { class: 'carte' }, h('h2', {}, 'Enveloppes'),
+      h('ul', { class: 'lignes' },
+        [['Supervision', r.soldes.supervision], ['Formation', r.soldes.formation], ['Trésorerie', r.soldes.tresorerie], ['Tirelire charges', r.soldes.tirelireCharges], ['Tirelire salaire', r.soldes.tirelireSalaire]]
+          .map(([n, v]) => ligne(n, v)), ligne('Total', r.soldes.total, 'total'))),
+    h('article', { class: 'carte' }, h('h2', {}, 'Plafond micro-BNC'),
+      h('div', { class: 'jauge' + (plafond.alerte ? ' alerte' : ''), role: 'meter', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': Math.round(plafond.pct / 100), 'aria-label': 'CA cumulé par rapport au plafond' },
+        h('span', { style: `width:${Math.min(100, plafond.pct / 100)}%` })),
+      h('p', { class: 'petit' }, `${eur(plafond.cumul)} sur ${eur(P.plafondMicro)} (${pct(plafond.pct)})`)));
 }
 
 function graphiqueCA() {

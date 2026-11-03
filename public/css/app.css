@@ -190,6 +190,17 @@ dialog::backdrop { background: rgba(23, 21, 31, .45); }
   .contenu { padding: 16px; } .g3, .g2, .saisie { grid-template-columns: 1fr; } .panneau { position: static; }
 }
 
+/* Téléphone : mode consultation */
+@media (max-width: 760px) {
+  .pied-nav .statut { display: none; }
+  .mobile .carte { margin-bottom: 12px; }
+  .choix-mois { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+  .choix-mois h1 { font-size: 1.25rem; margin: 0; text-align: center; }
+  .choix-mois .btn { min-width: 44px; min-height: 44px; font-size: 1.3rem; }
+  .entete .btn { display: none; }
+  .tableau-defile th:first-child, .tableau-defile td:first-child { position: sticky; left: 0; background: var(--surface); z-index: 1; }
+}
+
 /* Impression / PDF de la vue annuelle */
 @media print {
   @page { size: A4 landscape; margin: 10mm; }
