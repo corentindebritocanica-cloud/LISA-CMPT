@@ -59,6 +59,10 @@ function paramsCalcul(P) {
 const dernierMoisSaisi = () => { for (let m = 11; m >= 0; m--) if (moisSaisi(m)) return m; return -1; };
 const moisReference = () => { const d = dernierMoisSaisi(); return d >= 0 ? d : moisCourant(); };
 
+// ------------------------------------------------------------------ Mobile : pas de zoom
+// iOS ignore parfois user-scalable=no : on bloque aussi le pincement (le double tape est coupé en CSS, touch-action).
+document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
+
 // ------------------------------------------------------------------ Démarrage
 async function demarrer() {
   try { await D.initialiser(); } catch { return ecranErreur('Impossible de charger l\'application. Vérifie ta connexion puis recharge la page.'); }
@@ -85,6 +89,8 @@ async function ouvrirSession(u) {
 function appliquerTheme() {
   const t = etat.reglages.theme === 'auto' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'sombre' : 'clair') : etat.reglages.theme;
   document.documentElement.dataset.theme = t || 'clair';
+  // Couleur de la barre d'état (mobile) assortie au thème
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', getComputedStyle(document.body).backgroundColor);
 }
 
 function marque() {

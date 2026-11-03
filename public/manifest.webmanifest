@@ -1,12 +1,20 @@
 {
+  "id": "./",
   "name": "Compta Lisa",
   "short_name": "Compta Lisa",
+  "description": "Pilotage financier du cabinet : salaire, enveloppes, trésorerie.",
   "lang": "fr",
+  "dir": "ltr",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "orientation": "portrait-primary",
   "background_color": "#f6f5fa",
   "theme_color": "#5f5199",
+  "categories": [
+    "finance",
+    "productivity"
+  ],
   "icons": [
     {
       "src": "icone.svg",

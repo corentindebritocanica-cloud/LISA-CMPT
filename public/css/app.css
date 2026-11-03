@@ -39,6 +39,10 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; }
+/* Comportement d'application sur mobile : pas de zoom (pincement, double tape), pas de rebond, pas de surbrillance au toucher */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; touch-action: pan-x pan-y; overscroll-behavior: none; }
+body { -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+button, .btn, .nav a, .puce { touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 body { font: 15px/1.5 var(--police); color: var(--texte); background: var(--fond); -webkit-font-smoothing: antialiased; }
 h1, h2, h3 { font-family: var(--police-titre); font-weight: 600; letter-spacing: .005em; margin: 0 0 .5rem; }
 h1 { font-size: 1.6rem; } h2 { font-size: 1.2rem; } h3 { font-size: 1rem; font-family: var(--police); font-weight: 650; }
@@ -52,7 +56,7 @@ a { color: var(--accent); }
 .petit { font-size: .85rem; }
 
 /* ---------- Écran de chargement / connexion ---------- */
-.ecran-centre { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+.ecran-centre { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: 24px; }
 .carte-connexion { width: min(420px, 100%); background: var(--surface); border: 1px solid var(--bord); border-radius: 18px; padding: 32px; box-shadow: var(--ombre); }
 .carte-connexion .marque { margin-bottom: 20px; }
 .marque { display: flex; align-items: center; gap: 10px; font-family: var(--police-titre); font-size: 1.3rem; font-weight: 600; }
@@ -61,7 +65,7 @@ a { color: var(--accent); }
 @keyframes tourne { to { transform: rotate(1turn); } }
 
 /* ---------- Structure ---------- */
-.appli { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+.appli { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; min-height: 100dvh; }
 .barre-laterale { background: var(--surface); border-right: 1px solid var(--bord); padding: 20px 14px; display: flex; flex-direction: column; gap: 18px; position: sticky; top: 0; height: 100vh; }
 .nav { display: flex; flex-direction: column; gap: 2px; }
 .nav a { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 9px; color: var(--texte-2); text-decoration: none; font-weight: 500; }
@@ -69,7 +73,7 @@ a { color: var(--accent); }
 .nav a[aria-current="page"] { background: var(--accent-doux); color: var(--accent-fort); }
 .nav svg { width: 18px; height: 18px; flex: none; }
 .pied-nav { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
-.contenu { padding: 24px 32px 48px; max-width: 1320px; width: 100%; }
+.contenu { min-width: 0;  padding: 24px 32px 48px; max-width: 1320px; width: 100%; }
 .entete { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
 .entete h1 { margin: 0; flex: 1; }
 
@@ -193,6 +197,11 @@ dialog::backdrop { background: rgba(23, 21, 31, .45); }
 /* Téléphone : mode consultation */
 @media (max-width: 760px) {
   .pied-nav .statut { display: none; }
+  /* iOS zoome sur un champ < 16 px : on l'évite */
+  .entree, select, .select, input, textarea { font-size: 16px; }
+  /* Cibles tactiles ≥ 44 px (WCAG 2.5.5 / Apple HIG) */
+  .nav a, .btn, .pied-nav select { min-height: 44px; min-width: 44px; justify-content: center; }
+  .tableau-defile { -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
   .mobile .carte { margin-bottom: 12px; }
   .choix-mois { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
   .choix-mois h1 { font-size: 1.25rem; margin: 0; text-align: center; }
